@@ -21,14 +21,14 @@
     .card { background: #ffffff; border-radius: 10px; border: 1px solid #cbd5e1; box-shadow: 0 2px 5px rgba(0,0,0,0.04); padding: 22px; }
     .card-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 14px; padding-bottom: 8px; border-bottom: 2px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; min-height: 36px; }
 
-    /* 參數微調工具列面板 */
-    .adjust-toolbar { display: grid; grid-template-columns: repeat(auto-fit, minmax(115px, 1fr)); gap: 8px; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; margin-bottom: 14px; }
-    .stepper-item { display: flex; align-items: center; justify-content: space-between; background: #fff; border: 1px solid #cbd5e1; border-radius: 6px; padding: 2px 5px; }
-    .stepper-label { font-size: 0.82rem; font-weight: 700; color: #475569; margin-right: 4px; }
-    .btn-step { width: 22px; height: 22px; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9rem; display: flex; align-items: center; justify-content: center; color: #334155; transition: all 0.2s; user-select: none; }
+    /* 參數微調工具列面板 (加大組件間距，防止誤觸) */
+    .adjust-toolbar { display: flex; flex-wrap: wrap; gap: 16px; background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 9px 14px; margin-bottom: 14px; }
+    .stepper-item { display: flex; align-items: center; background: #fff; border: 1.5px solid #cbd5e1; border-radius: 6px; padding: 3px 8px; gap: 6px; }
+    .stepper-label { font-size: 0.84rem; font-weight: 700; color: #475569; margin-right: 2px; }
+    .btn-step { width: 24px; height: 24px; border: 1px solid #cbd5e1; background: #f8fafc; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.95rem; display: flex; align-items: center; justify-content: center; color: #334155; transition: all 0.2s; user-select: none; }
     .btn-step:hover { background: #e2e8f0; color: #0f172a; border-color: #94a3b8; }
     .btn-step:active { transform: scale(0.92); }
-    .step-value { font-size: 0.84rem; font-weight: 700; min-width: 34px; text-align: center; color: #1e293b; }
+    .step-value { font-size: 0.86rem; font-weight: 700; min-width: 36px; text-align: center; color: #1e293b; }
 
     /* 頂部開關控制列 */
     .top-controls { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
@@ -145,17 +145,17 @@
     <!-- 方案 C：三段分組容器 -->
     <div id="sectionsContainer"></div>
 
-    <!-- 置底/側邊使用表單設定面板 -->
+    <!-- 使用表單設定面板 (預設空白) -->
     <div class="forms-panel">
       <div class="forms-panel-title">📝 流程圖「使用表單」名稱設定 (單排時置右 / 雙排時置底)</div>
       <div class="forms-grid">
         <div class="form-group">
           <label style="color:#0033CC;">施工抽查紀錄表（藍色字體）：</label>
-          <textarea id="blueFormsInput" oninput="updateDiagram()">表 02742-01 瀝青混凝土鋪面施工抽查紀錄表</textarea>
+          <textarea id="blueFormsInput" placeholder="例如：表 02742-01 瀝青混凝土鋪面施工抽查紀錄表" oninput="updateDiagram()"></textarea>
         </div>
         <div class="form-group">
           <label style="color:#CC0000;">安衛查驗表單（紅色字體）：</label>
-          <textarea id="redFormsInput" oninput="updateDiagram()">表 02742-02 瀝青混凝土施工安全監造現場抽查表</textarea>
+          <textarea id="redFormsInput" placeholder="例如：表 02742-02 瀝青混凝土施工安全監造現場抽查表" oninput="updateDiagram()"></textarea>
         </div>
       </div>
     </div>
@@ -167,13 +167,13 @@
     <div id="statusToast" class="status-toast"></div>
   </div>
 
-  <!-- 右側：即時預覽區 (含四大排版參數微調列) -->
+  <!-- 右側：即時預覽區 -->
   <div class="card preview-sticky">
     <div class="card-title">
       <span id="previewSubTitle" style="color:#334155; font-weight:700;">施工階段管制模式 (施工前/中/後)</span>
     </div>
 
-    <!-- 參數微調工具列 -->
+    <!-- 參數微調工具列 (按鈕間隔拉大) -->
     <div class="adjust-toolbar">
       <div class="stepper-item">
         <span class="stepper-label">寬度</span>
@@ -232,16 +232,17 @@
   let enablePhases = true;
   let splitAfterIndex = null;
 
-  // 四大動態排版微調參數
+  // 四大排版動態參數
   let nodeWidth = 150;              // 圖塊寬度 (pt)
-  let nodeHeight = 38;              // 圖塊基礎高度 (pt)
+  let nodeHeight = 38;              // 基礎作業圖塊高度 (pt)
   let fontSizePt = 10;              // 字體大小 (pt)
   let verticalGap = 28;             // 箭頭長度 (pt)
-  const PASS_VERTICAL_GAP = 28;     // 查驗點「合格」箭頭安全保護長度
+  const PASS_VERTICAL_GAP = 28;     // 查驗停留點「合格」箭頭固定保護間距
 
   const startNodeText = "開始";
   const endNodeText = "完成";
-  const CIRCLE_RADIUS = 13;
+  const START_END_HEIGHT = 45;      // 開始與完成高度固定卡死 45pt
+  const CIRCLE_RADIUS = 10;         // 正圓形接續點縮減 1/4 (直徑 20pt)
 
   let draggedItemId = null;
 
@@ -264,13 +265,13 @@
     fontSizePt = 10;
     verticalGap = 28;
     updateStepperDisplay();
-    document.getElementById('blueFormsInput').value = "表 02742-01 瀝青混凝土鋪面施工抽查紀錄表";
-    document.getElementById('redFormsInput').value = "表 02742-02 瀝青混凝土施工安全監造現場抽查表";
+    // 使用表單預設空白
+    document.getElementById('blueFormsInput').value = "";
+    document.getElementById('redFormsInput').value = "";
     renderSections();
     updateDiagram();
   }
 
-  // 參數微調統一處理函式
   function adjustParam(type, delta) {
     if (type === 'width') {
       nodeWidth = Math.max(110, Math.min(240, nodeWidth + delta));
@@ -312,10 +313,8 @@
     });
   }
 
-  // 智慧折行演算法（自動依方塊寬度換算最適換行字數）
   function formatNodeLines(text) {
     if (!text) return [""];
-    // 依寬度自動計算每行最適字數 (例如 150pt 約 10 字，180pt 約 12 字，120pt 約 8 字)
     const maxCharsPerLine = Math.max(6, Math.floor(nodeWidth / 15));
     const sections = text.split(/\r?\n/);
     const resultLines = [];
@@ -452,7 +451,7 @@
           tr.addEventListener('dragstart', handleDragStart);
           tr.addEventListener('dragover', handleRowDragOver);
           tr.addEventListener('dragleave', handleRowDragLeave);
-          tr.addEventListener('dragend', handleDragEnd);
+          tr.addEventListener('end', handleDragEnd);
 
           tbody.appendChild(tr);
         });
@@ -469,7 +468,6 @@
     }
   }
 
-  // --- 拖曳事件處理 (支援精準上下半部識別) ---
   function handleDragStart(e) {
     if (this.getAttribute('draggable') !== 'true') { e.preventDefault(); return; }
     draggedItemId = String(this.dataset.id);
@@ -712,13 +710,12 @@
     return { blueList, redList, hasForms: (blueList.length > 0 || redList.length > 0) };
   }
 
-  // --- 幾何計算模型 (全面連動寬度、高度、字體、箭頭) ---
+  // --- 幾何計算模型 ---
   function buildGeometryModel() {
     const sorted = getSortedFlowData();
     const isDoubleCol = (splitAfterIndex !== null && splitAfterIndex >= 0 && splitAfterIndex < sorted.length - 1);
     const renderPhases = (enablePhases && !isDoubleCol);
 
-    // 衍生尺寸計算
     let startW = Math.round(nodeWidth * 0.8);
     if (startW % 2 !== 0) startW += 1;
 
@@ -728,8 +725,8 @@
     let diaH = Math.round(nodeHeight * 1.15);
     if (diaH % 2 !== 0) diaH += 1;
 
-    const lineH = Math.round(fontSizePt * 1.4); // 行距間隔
-    const lineSpacingWord = Math.round(fontSizePt * 1.25); // Word VML 固定行高
+    const lineH = Math.round(fontSizePt * 1.4);
+    const lineSpacingWord = Math.round(fontSizePt * 1.25);
 
     const nodes = [];
     const arrows = [];
@@ -738,25 +735,28 @@
     const phaseLabels = [];
 
     if (!isDoubleCol) {
-      // ===== 單欄排版 (使用表單在右側) =====
-      const CX = renderPhases ? Math.round(40 + 35 + nodeWidth / 2) : Math.round(45 + nodeWidth / 2);
-      const LOOP_X = CX - Math.round(nodeWidth / 2) - 24;
-      const V_LINE_X = 35;
-      const PHASE_TEXT_X = 16;
-      const FORMS_X = CX + Math.round(nodeWidth / 2) + 25;
+      // ===== 單欄排版 (拉大虛線與流程圖距離，杜絕擠壓卡住) =====
+      const V_LINE_X = 40;       // 左側垂直灰色虛線位置
+      const PHASE_TEXT_X = 18;   // 階段直排文字位置
+      const LOOP_X = renderPhases ? 86 : 48; // 不合格回溯線位置 (與虛線保持充足間距)
+      const CX = renderPhases 
+        ? (LOOP_X + 28 + Math.round(nodeWidth / 2)) 
+        : Math.round(48 + 24 + nodeWidth / 2);
+      const FORMS_X = CX + Math.round(nodeWidth / 2) + 26;
 
       let currentY = 24;
 
+      // 開始圖塊高度卡死 45pt
       const startNode = {
         type: 'start',
         lines: [startNodeText],
         x: Math.round(CX - startW / 2),
         y: currentY,
         w: startW,
-        h: nodeHeight
+        h: START_END_HEIGHT
       };
       nodes.push(startNode);
-      currentY += nodeHeight;
+      currentY += START_END_HEIGHT;
 
       let prevAnchor = { x: CX, y: currentY };
       let pendingPass = false;
@@ -788,7 +788,7 @@
             phaseDividers.push({
               y: divY,
               x1: 10,
-              x2: CX + nodeWidth / 2 + 20
+              x2: CX + nodeWidth / 2 + 25
             });
           }
         }
@@ -846,16 +846,17 @@
       currentY += finalArrowGap;
       arrows.push({ x1: prevAnchor.x, y1: prevAnchor.y, x2: CX, y2: currentY, hasPass: pendingPass });
 
+      // 完成圖塊高度卡死 45pt
       const endNode = {
         type: 'end',
         lines: [endNodeText],
         x: Math.round(CX - startW / 2),
         y: currentY,
         w: startW,
-        h: nodeHeight
+        h: START_END_HEIGHT
       };
       nodes.push(endNode);
-      currentY += nodeHeight;
+      currentY += START_END_HEIGHT;
 
       if (renderPhases) {
         const stageConfigs = [
@@ -879,7 +880,7 @@
 
       const formsY = firstTaskAnchorY ? (firstTaskAnchorY + 10) : Math.round(currentY * 0.35);
       const totalH = Math.max(currentY + 24, formsY + 220);
-      const canvasW = Math.max(540, FORMS_X + 240);
+      const canvasW = Math.max(560, FORMS_X + 240);
 
       return {
         isDoubleCol: false,
@@ -897,13 +898,12 @@
       };
 
     } else {
-      // ===== 雙欄換欄排版 (使用表單置底) =====
+      // ===== 雙欄換欄排版 =====
       const CX1 = Math.round(35 + nodeWidth / 2);
       const CX2 = Math.round(CX1 + nodeWidth + 60);
       const LOOP_X1 = CX1 - Math.round(nodeWidth / 2) - 20;
       const LOOP_X2 = CX2 - Math.round(nodeWidth / 2) - 20;
 
-      // 1. 左欄生成
       let y1 = 24;
       const startNode = {
         type: 'start',
@@ -911,10 +911,10 @@
         x: Math.round(CX1 - startW / 2),
         y: y1,
         w: startW,
-        h: nodeHeight
+        h: START_END_HEIGHT
       };
       nodes.push(startNode);
-      y1 += nodeHeight;
+      y1 += START_END_HEIGHT;
 
       let prevAnchor1 = { x: CX1, y: y1 };
       let pendingPass1 = false;
@@ -971,7 +971,7 @@
         }
       }
 
-      // 左欄末端：正圓形連接點
+      // 左欄末端：正圓形連接點 (縮小 1/4)
       const outArrowGap = pendingPass1 ? PASS_VERTICAL_GAP : verticalGap;
       y1 += outArrowGap;
       arrows.push({ x1: prevAnchor1.x, y1: prevAnchor1.y, x2: CX1, y2: y1, hasPass: pendingPass1 });
@@ -985,8 +985,8 @@
       nodes.push(circleOutNode);
       y1 += CIRCLE_RADIUS * 2;
 
-      // 2. 右欄生成
-      const circleInTopY = 30;
+      // 右欄頂部：正圓形連接點 (縮小 1/4)
+      const circleInTopY = 32;
       const circleInNode = {
         type: 'circle',
         cx: CX2,
@@ -1061,10 +1061,10 @@
         x: Math.round(CX2 - startW / 2),
         y: y2,
         w: startW,
-        h: nodeHeight
+        h: START_END_HEIGHT
       };
       nodes.push(endNode);
-      y2 += nodeHeight;
+      y2 += START_END_HEIGHT;
 
       const maxColY = Math.max(y1, y2);
       const formsY = maxColY + 24;
@@ -1194,7 +1194,7 @@
     svg.innerHTML = content;
   }
 
-  // --- Word 原生 VML 生成引擎 ---
+  // --- Word 原生 VML 代碼生成 ---
   function buildWordVmlHtml() {
     const geo = buildGeometryModel();
     const forms = getFormsData();
@@ -1297,7 +1297,8 @@
         const diam = Math.round(n.r * 2);
         vml += `
           <v:oval style="position:absolute;left:${left}pt;top:${top}pt;width:${diam}pt;height:${diam}pt;" 
-                  fillcolor="#FFFFFF" strokecolor="#000000" strokeweight="1.2pt"></v:oval>
+                  fillcolor="#FFFFFF" strokecolor="#000000" strokeweight="1.2pt">
+          </v:oval>
         `;
       } else if (n.type === 'task') {
         const nx = Math.round(n.x);
@@ -1400,7 +1401,7 @@
         document.execCommand('copy');
         document.removeEventListener('copy', listener);
       }
-      showToast('複製成功！請至 Word 按 Ctrl+V 貼上（寬高字體已同步匯出）');
+      showToast('複製成功！請至 Word 按 Ctrl+V 貼上（已修復所有微調規格）');
     } catch (err) {
       console.error(err);
       showToast('寫入剪貼簿失敗，請確認瀏覽器已允許剪貼簿權限。', true);
