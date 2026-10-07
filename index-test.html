@@ -139,6 +139,7 @@
         <input type="checkbox" id="enablePhasesCheckbox" checked onchange="toggleEnablePhases(this.checked)">
         <span>啟用施工階段管制（施工前／中／後）</span>
       </label>
+      <small id="dualColNotice" style="color:#d97706; font-weight:bold; display:none;">⚠️ 雙排排版中：已自動取消勾選施工管制</small>
     </div>
 
     <!-- 方案 C：三段分組容器 -->
@@ -229,7 +230,7 @@
   ];
 
   let enablePhases = true;
-  let splitTaskId = null;           // 斷點工項 ID (null 代表未啟用斷點，全流程單欄)
+  let splitTaskId = null;           // 斷點工項 ID
 
   let nodeWidth = 150;
   let nodeHeight = 38;
@@ -402,7 +403,6 @@
         itemsInGroup.forEach((item) => {
           const globalIndex = sorted.indexOf(item);
           const isBreak = (String(splitTaskId) === String(item.id));
-          // 限制：啟用階段時斷點只能在「施工中」；未啟用階段時最後一項除外皆可斷點
           const canBreak = enablePhases ? (item.phase === 'mid') : (globalIndex < sorted.length - 1);
 
           const tr = document.createElement('tr');
@@ -715,7 +715,7 @@
     return { blueList, redList, hasForms: (blueList.length > 0 || redList.length > 0) };
   }
 
-  // --- 幾何計算模型 (徹底修復未啟用施工階段時的巨大間隔箭頭) ---
+  // --- 幾何計算模型 (強制開始屬於施工前、完成屬於施工後) ---
   function buildGeometryModel() {
     const sorted = getSortedFlowData();
     const breakIndex = splitTaskId ? sorted.findIndex(d => String(d.id) === String(splitTaskId)) : -1;
@@ -738,8 +738,8 @@
     const phaseDividers = [];
     const phaseLabels = [];
 
-    const V_LINE_X = 40;
-    const PHASE_TEXT_X = 18;
+    const V_LINE_X = 40;       // 左側垂直虛線 X
+    const PHASE_TEXT_X = 18;   // 階段直排文字 X
 
     if (!isDoubleCol) {
       // ===== 狀態一：單欄直排模式 (使用表單在右側) =====
@@ -749,6 +749,7 @@
 
       let currentY = 24;
 
+      // 開始圖塊高度卡死 45pt (固定屬於施工前)
       const startNode = {
         type: 'start',
         lines: [startNodeText],
@@ -764,11 +765,14 @@
       let pendingPass = false;
       let firstTaskAnchorY = null;
 
+      // 開始節點固定屬於施工前
       const phaseBounds = {
-        'pre': { minY: 9999, maxY: -9999, has: false },
+        'pre': { minY: renderPhases ? 24 : 9999, maxY: renderPhases ? (24 + START_END_HEIGHT) : -9999, has: renderPhases },
         'mid': { minY: 9999, maxY: -9999, has: false },
         'post': { minY: 9999, maxY: -9999, has: false }
       };
+
+      let prevPh = 'pre'; // 前一個階段，開始節點視為 'pre'
 
       sorted.forEach((item, idx) => {
         const ph = item.phase || 'mid';
@@ -783,17 +787,16 @@
           x1: prevAnchor.x, y1: prevAnchor.y, x2: CX, y2: currentY, hasPass: pendingPass
         });
 
-        if (renderPhases && idx > 0) {
-          const prevPh = sorted[idx - 1].phase || 'mid';
-          if (prevPh !== ph) {
-            const divY = Math.round((prevAnchor.y + currentY) / 2);
-            phaseDividers.push({
-              y: divY,
-              x1: 10,
-              x2: CX + nodeWidth / 2 + 25
-            });
-          }
+        // 階段切換時插入分界虛線 (例如 pre -> mid 或 mid -> post)
+        if (renderPhases && prevPh !== ph) {
+          const divY = Math.round((prevAnchor.y + currentY) / 2);
+          phaseDividers.push({
+            y: divY,
+            x1: 10,
+            x2: CX + nodeWidth / 2 + 25
+          });
         }
+        prevPh = ph;
         pendingPass = false;
 
         const lines = formatNodeLines(item.text);
@@ -848,6 +851,17 @@
       currentY += finalArrowGap;
       arrows.push({ x1: prevAnchor.x, y1: prevAnchor.y, x2: CX, y2: currentY, hasPass: pendingPass });
 
+      // 如果最後一個工項不是 post (完成節點固定屬於 post)，插入中/後分界線
+      if (renderPhases && prevPh !== 'post') {
+        const divY = Math.round((prevAnchor.y + currentY) / 2);
+        phaseDividers.push({
+          y: divY,
+          x1: 10,
+          x2: CX + nodeWidth / 2 + 25
+        });
+      }
+
+      // 完成圖塊高度卡死 45pt (固定屬於施工後)
       const endNode = {
         type: 'end',
         lines: [endNodeText],
@@ -857,6 +871,15 @@
         h: START_END_HEIGHT
       };
       nodes.push(endNode);
+
+      if (renderPhases) {
+        phaseBounds['post'].has = true;
+        if (phaseBounds['post'].minY > 9000) {
+          phaseBounds['post'].minY = currentY;
+        }
+        phaseBounds['post'].maxY = currentY + START_END_HEIGHT;
+      }
+
       currentY += START_END_HEIGHT;
 
       if (renderPhases) {
@@ -899,13 +922,12 @@
       };
 
     } else if (!renderPhases) {
-      // ===== 狀態二：未啟用施工階段的雙欄排版 (純雙欄自然流動，徹底杜絕巨大箭頭！) =====
+      // ===== 狀態二：未啟用施工階段的雙欄排版 =====
       const CX1 = Math.round(35 + nodeWidth / 2);
       const CX2 = Math.round(CX1 + nodeWidth + 60);
       const LOOP_X1 = CX1 - Math.round(nodeWidth / 2) - 20;
       const LOOP_X2 = CX2 - Math.round(nodeWidth / 2) - 20;
 
-      // 1. 左欄：開始 -> breakIndex 工項 -> 正圓形接續點
       let y1 = 24;
       const startNode = {
         type: 'start',
@@ -972,7 +994,6 @@
         }
       }
 
-      // 左欄正圓形接續點
       const outArrowGap = pendingPass1 ? PASS_VERTICAL_GAP : verticalGap;
       y1 += outArrowGap;
       arrows.push({ x1: prevAnchor1.x, y1: prevAnchor1.y, x2: CX1, y2: y1, hasPass: pendingPass1 });
@@ -986,7 +1007,6 @@
       nodes.push(circleOutNode);
       y1 += CIRCLE_RADIUS * 2;
 
-      // 2. 右欄：正圓形接續點 (頂端高度自然對齊開始膠囊中心) -> 剩餘工項 -> 完成
       const circleInCy = Math.round(24 + START_END_HEIGHT / 2);
       const circleInNode = {
         type: 'circle',
@@ -1052,7 +1072,6 @@
         }
       }
 
-      // 右欄完成節點 (緊接在最後工項下方，標準間距，絕不大跳格！)
       const endArrowGap = pendingPass2 ? PASS_VERTICAL_GAP : verticalGap;
       y2 += endArrowGap;
       arrows.push({ x1: prevAnchor2.x, y1: prevAnchor2.y, x2: CX2, y2: y2, hasPass: pendingPass2 });
@@ -1088,7 +1107,7 @@
       };
 
     } else {
-      // ===== 狀態三：啟用施工階段的雙欄排版 (共用虛線與高程對齊防跑版) =====
+      // ===== 狀態三：啟用施工階段的雙欄排版 (開始為施工前、完成為施工後) =====
       const LOOP_X1 = 86;
       const CX1 = LOOP_X1 + 28 + Math.round(nodeWidth / 2);
       const LOOP_X2 = CX1 + Math.round(nodeWidth / 2) + 36;
@@ -1097,7 +1116,6 @@
       const CANVAS_W = Math.max(580, CX2 + Math.round(nodeWidth / 2) + 30);
       const DIVIDER_LINE_W = CANVAS_W - 20;
 
-      // 1. 左欄生成
       let y1 = 24;
       const startNode = {
         type: 'start',
@@ -1113,6 +1131,7 @@
       let prevAnchor1 = { x: CX1, y: y1 };
       let pendingPass1 = false;
       let div1Y = null;
+      let prevPh1 = 'pre'; // 開始視為 pre
 
       for (let i = 0; i <= breakIndex; i++) {
         const item = sorted[i];
@@ -1123,12 +1142,13 @@
 
         arrows.push({ x1: prevAnchor1.x, y1: prevAnchor1.y, x2: CX1, y2: y1, hasPass: pendingPass1 });
 
-        if (renderPhases && i > 0 && div1Y === null) {
-          const prevPh = sorted[i - 1].phase || 'mid';
-          if (prevPh === 'pre' && ph === 'mid') {
+        // 判定前/中分界線 ① (如果 sorted[0] 就是 mid，則在開始與 sorted[0] 間劃分)
+        if (renderPhases && div1Y === null) {
+          if (prevPh1 === 'pre' && ph === 'mid') {
             div1Y = Math.round((prevAnchor1.y + y1) / 2);
           }
         }
+        prevPh1 = ph;
         pendingPass1 = false;
 
         const lines = formatNodeLines(item.text);
@@ -1175,7 +1195,6 @@
         }
       }
 
-      // 左欄正圓形
       const outArrowGap = pendingPass1 ? PASS_VERTICAL_GAP : verticalGap;
       y1 += outArrowGap;
       arrows.push({ x1: prevAnchor1.x, y1: prevAnchor1.y, x2: CX1, y2: y1, hasPass: pendingPass1 });
@@ -1190,8 +1209,8 @@
       y1 += CIRCLE_RADIUS * 2;
       const leftMidEndY = y1;
 
-      // 2. 右欄施工中前半段生成
-      const safeDiv1 = div1Y || 100;
+      // 右欄施工中接續
+      const safeDiv1 = div1Y || (24 + START_END_HEIGHT + 14);
       const circleInTopY = safeDiv1 + 16;
       const circleInNode = {
         type: 'circle',
@@ -1327,7 +1346,7 @@
         }
       }
 
-      // 右欄完成
+      // 右欄完成 (固定屬於施工後)
       const endArrowGap = pendingPass2 ? PASS_VERTICAL_GAP : verticalGap;
       y2 += endArrowGap;
       arrows.push({ x1: prevAnchor2.x, y1: prevAnchor2.y, x2: CX2, y2: y2, hasPass: pendingPass2 });
@@ -1588,7 +1607,8 @@
         const diam = Math.round(n.r * 2);
         vml += `
           <v:oval style="position:absolute;left:${left}pt;top:${top}pt;width:${diam}pt;height:${diam}pt;" 
-                  fillcolor="#FFFFFF" strokecolor="#000000" strokeweight="1.2pt"></v:oval>
+                  fillcolor="#FFFFFF" strokecolor="#000000" strokeweight="1.2pt">
+          </v:oval>
         `;
       } else if (n.type === 'task') {
         const nx = Math.round(n.x);
@@ -1691,7 +1711,7 @@
         document.execCommand('copy');
         document.removeEventListener('copy', listener);
       }
-      showToast('複製成功！請至 Word 按 Ctrl+V 貼上（已去除多餘長度空隔）');
+      showToast('複製成功！請至 Word 按 Ctrl+V 貼上（已修復雙排方塊與表單）');
     } catch (err) {
       console.error(err);
       showToast('寫入剪貼簿失敗，請確認瀏覽器已允許剪貼簿權限。', true);
