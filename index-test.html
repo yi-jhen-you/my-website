@@ -31,7 +31,7 @@
     .step-value { font-size: 0.86rem; font-weight: 700; min-width: 36px; text-align: center; color: #1e293b; }
 
     /* 頂部開關控制列 */
-    .top-controls { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .top-controls { background: #f8fafc; border: 1.5px solid #e2e8f0; border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
     .switch-label { font-weight: 700; font-size: 0.95rem; display: flex; align-items: center; gap: 8px; cursor: pointer; color: #1e293b; }
 
     /* 階段分組區塊樣式 */
@@ -133,13 +133,16 @@
       </div>
     </div>
 
-    <!-- 階段開關控制 -->
+    <!-- 頂部開關控制列 -->
     <div class="top-controls">
       <label class="switch-label">
         <input type="checkbox" id="enablePhasesCheckbox" checked onchange="toggleEnablePhases(this.checked)">
         <span>啟用施工階段管制（施工前／中／後）</span>
       </label>
-      <small id="dualColNotice" style="color:#d97706; font-weight:bold; display:none;">⚠️ 雙排排版中：已自動取消勾選施工管制</small>
+      <label class="switch-label">
+        <input type="checkbox" id="enableLegendCheckbox" checked onchange="toggleEnableLegend(this.checked)">
+        <span>顯示底部圖示說明（備註）</span>
+      </label>
     </div>
 
     <!-- 方案 C：三段分組容器 -->
@@ -230,6 +233,7 @@
   ];
 
   let enablePhases = true;
+  let enableLegend = true;          // 預設開啟底部圖示說明
   let splitTaskId = null;           // 斷點工項 ID
 
   let nodeWidth = 150;
@@ -237,6 +241,9 @@
   let fontSizePt = 10;
   let verticalGap = 28;
   const PASS_VERTICAL_GAP = 28;
+
+  // 圖示文字框固定寬度為 14 公分 (14cm ≈ 397pt)
+  const LEGEND_BOX_WIDTH = 397;
 
   const startNodeText = "開始";
   const endNodeText = "完成";
@@ -258,6 +265,7 @@
       { id: 3, text: "清理及檢視", isStopPoint: true, isSafetyPoint: true, phase: 'post' }
     ];
     enablePhases = true;
+    enableLegend = true;
     splitTaskId = null;
     nodeWidth = 150;
     nodeHeight = 38;
@@ -266,6 +274,8 @@
     updateStepperDisplay();
     document.getElementById('blueFormsInput').value = "";
     document.getElementById('redFormsInput').value = "";
+    document.getElementById('enablePhasesCheckbox').checked = true;
+    document.getElementById('enableLegendCheckbox').checked = true;
     renderSections();
     updateDiagram();
   }
@@ -294,6 +304,11 @@
   function toggleEnablePhases(checked) {
     enablePhases = checked;
     renderSections();
+    updateDiagram();
+  }
+
+  function toggleEnableLegend(checked) {
+    enableLegend = checked;
     updateDiagram();
   }
 
@@ -343,6 +358,8 @@
 
     const chk = document.getElementById('enablePhasesCheckbox');
     if (chk) chk.checked = enablePhases;
+    const legChk = document.getElementById('enableLegendCheckbox');
+    if (legChk) legChk.checked = enableLegend;
 
     const sorted = getSortedFlowData();
     const isDualColActive = (splitTaskId !== null);
@@ -715,7 +732,7 @@
     return { blueList, redList, hasForms: (blueList.length > 0 || redList.length > 0) };
   }
 
-  // --- 幾何計算模型 (強制開始屬於施工前、完成屬於施工後) ---
+  // --- 幾何計算模型 (編號凸排懸掛對齊 + 14cm 寬度) ---
   function buildGeometryModel() {
     const sorted = getSortedFlowData();
     const breakIndex = splitTaskId ? sorted.findIndex(d => String(d.id) === String(splitTaskId)) : -1;
@@ -738,18 +755,17 @@
     const phaseDividers = [];
     const phaseLabels = [];
 
-    const V_LINE_X = 40;       // 左側垂直虛線 X
-    const PHASE_TEXT_X = 18;   // 階段直排文字 X
+    const V_LINE_X = 40;
+    const PHASE_TEXT_X = 18;
 
     if (!isDoubleCol) {
-      // ===== 狀態一：單欄直排模式 (使用表單在右側) =====
+      // ===== 狀態一：單欄直排模式 =====
       const LOOP_X = renderPhases ? 86 : 48;
       const CX = renderPhases ? (LOOP_X + 28 + Math.round(nodeWidth / 2)) : Math.round(48 + 24 + nodeWidth / 2);
       const FORMS_X = CX + Math.round(nodeWidth / 2) + 26;
 
       let currentY = 24;
 
-      // 開始圖塊高度卡死 45pt (固定屬於施工前)
       const startNode = {
         type: 'start',
         lines: [startNodeText],
@@ -765,14 +781,13 @@
       let pendingPass = false;
       let firstTaskAnchorY = null;
 
-      // 開始節點固定屬於施工前
       const phaseBounds = {
         'pre': { minY: renderPhases ? 24 : 9999, maxY: renderPhases ? (24 + START_END_HEIGHT) : -9999, has: renderPhases },
         'mid': { minY: 9999, maxY: -9999, has: false },
         'post': { minY: 9999, maxY: -9999, has: false }
       };
 
-      let prevPh = 'pre'; // 前一個階段，開始節點視為 'pre'
+      let prevPh = 'pre';
 
       sorted.forEach((item, idx) => {
         const ph = item.phase || 'mid';
@@ -787,7 +802,6 @@
           x1: prevAnchor.x, y1: prevAnchor.y, x2: CX, y2: currentY, hasPass: pendingPass
         });
 
-        // 階段切換時插入分界虛線 (例如 pre -> mid 或 mid -> post)
         if (renderPhases && prevPh !== ph) {
           const divY = Math.round((prevAnchor.y + currentY) / 2);
           phaseDividers.push({
@@ -851,7 +865,6 @@
       currentY += finalArrowGap;
       arrows.push({ x1: prevAnchor.x, y1: prevAnchor.y, x2: CX, y2: currentY, hasPass: pendingPass });
 
-      // 如果最後一個工項不是 post (完成節點固定屬於 post)，插入中/後分界線
       if (renderPhases && prevPh !== 'post') {
         const divY = Math.round((prevAnchor.y + currentY) / 2);
         phaseDividers.push({
@@ -861,7 +874,6 @@
         });
       }
 
-      // 完成圖塊高度卡死 45pt (固定屬於施工後)
       const endNode = {
         type: 'end',
         lines: [endNodeText],
@@ -902,9 +914,31 @@
         });
       }
 
+      const forms = getFormsData();
       const formsY = firstTaskAnchorY ? (firstTaskAnchorY + 10) : Math.round(currentY * 0.35);
-      const totalH = Math.max(currentY + 24, formsY + 220);
       const canvasW = Math.max(560, FORMS_X + 240);
+
+      let formsEstH = 0;
+      if (forms.hasForms) {
+        formsEstH = (forms.blueList.length + forms.redList.length) * Math.round(fontSizePt * 1.5) + Math.round(fontSizePt * 2) + 20;
+      }
+      let contentBottom = currentY;
+      if (forms.hasForms) {
+        contentBottom = Math.max(contentBottom, formsY + formsEstH);
+      }
+
+      // 底部備註固定 14 公分寬 (397pt)
+      let legendY = 0;
+      let legendH = 0;
+      let legendX = renderPhases ? 25 : 20;
+      let legendWidth = LEGEND_BOX_WIDTH;
+      let totalH = contentBottom + 30;
+
+      if (enableLegend) {
+        legendY = contentBottom + 20;
+        legendH = Math.max(150, Math.round(fontSizePt * 14));
+        totalH = legendY + legendH + 25;
+      }
 
       return {
         isDoubleCol: false,
@@ -917,6 +951,7 @@
         formsY: formsY,
         formsX: FORMS_X,
         formsWidth: 260,
+        legendX, legendY, legendWidth, legendH,
         lineH,
         lineSpacingWord
       };
@@ -1087,10 +1122,30 @@
       nodes.push(endNode);
       y2 += START_END_HEIGHT;
 
-      const maxColY = Math.max(y1, y2);
-      const formsY = maxColY + 24;
-      const totalH = formsY + 70;
+      const forms = getFormsData();
       const canvasW = Math.max(520, CX2 + Math.round(nodeWidth / 2) + 30);
+      let formsEstH = 0;
+      if (forms.hasForms) {
+        formsEstH = (forms.blueList.length + forms.redList.length) * Math.round(fontSizePt * 1.5) + Math.round(fontSizePt * 2) + 20;
+      }
+
+      let contentBottom = Math.max(y1, y2);
+      let formsY = contentBottom + 24;
+      if (forms.hasForms) {
+        contentBottom = formsY + formsEstH;
+      }
+
+      let legendY = 0;
+      let legendH = 0;
+      let legendX = 25;
+      let legendWidth = LEGEND_BOX_WIDTH;
+      let totalH = contentBottom + 30;
+
+      if (enableLegend) {
+        legendY = contentBottom + 20;
+        legendH = Math.max(150, Math.round(fontSizePt * 14));
+        totalH = legendY + legendH + 25;
+      }
 
       return {
         isDoubleCol: true,
@@ -1102,12 +1157,13 @@
         formsY: formsY,
         formsX: 35,
         formsWidth: canvasW - 70,
+        legendX, legendY, legendWidth, legendH,
         lineH,
         lineSpacingWord
       };
 
     } else {
-      // ===== 狀態三：啟用施工階段的雙欄排版 (開始為施工前、完成為施工後) =====
+      // ===== 狀態三：啟用施工階段的雙欄排版 =====
       const LOOP_X1 = 86;
       const CX1 = LOOP_X1 + 28 + Math.round(nodeWidth / 2);
       const LOOP_X2 = CX1 + Math.round(nodeWidth / 2) + 36;
@@ -1131,7 +1187,7 @@
       let prevAnchor1 = { x: CX1, y: y1 };
       let pendingPass1 = false;
       let div1Y = null;
-      let prevPh1 = 'pre'; // 開始視為 pre
+      let prevPh1 = 'pre';
 
       for (let i = 0; i <= breakIndex; i++) {
         const item = sorted[i];
@@ -1142,7 +1198,6 @@
 
         arrows.push({ x1: prevAnchor1.x, y1: prevAnchor1.y, x2: CX1, y2: y1, hasPass: pendingPass1 });
 
-        // 判定前/中分界線 ① (如果 sorted[0] 就是 mid，則在開始與 sorted[0] 間劃分)
         if (renderPhases && div1Y === null) {
           if (prevPh1 === 'pre' && ph === 'mid') {
             div1Y = Math.round((prevAnchor1.y + y1) / 2);
@@ -1209,7 +1264,6 @@
       y1 += CIRCLE_RADIUS * 2;
       const leftMidEndY = y1;
 
-      // 右欄施工中接續
       const safeDiv1 = div1Y || (24 + START_END_HEIGHT + 14);
       const circleInTopY = safeDiv1 + 16;
       const circleInNode = {
@@ -1282,7 +1336,6 @@
       }
       const rightMidEndY = y2;
 
-      // 階段分界線 ② (取左右施工中最大值)
       const maxMidEndY = Math.max(leftMidEndY, rightMidEndY);
       const div2Y = maxMidEndY + 18;
 
@@ -1291,7 +1344,6 @@
       }
       phaseDividers.push({ y: div2Y, x1: 10, x2: DIVIDER_LINE_W });
 
-      // 3. 右欄施工後生成 (強制錨定在分界線 ② 下方)
       y2 = Math.max(y2, div2Y);
 
       for (let i = breakIndex + 1 + rightMidTaskCount; i < sorted.length; i++) {
@@ -1346,7 +1398,6 @@
         }
       }
 
-      // 右欄完成 (固定屬於施工後)
       const endArrowGap = pendingPass2 ? PASS_VERTICAL_GAP : verticalGap;
       y2 += endArrowGap;
       arrows.push({ x1: prevAnchor2.x, y1: prevAnchor2.y, x2: CX2, y2: y2, hasPass: pendingPass2 });
@@ -1370,8 +1421,29 @@
       }
       phaseLabels.push({ text: '施工後', x: PHASE_TEXT_X, y: Math.round((div2Y + y2) / 2) });
 
-      const totalH = Math.max(y1, y2) + 24 + 70;
-      const formsY = Math.max(y1, y2) + 24;
+      const forms = getFormsData();
+      let formsEstH = 0;
+      if (forms.hasForms) {
+        formsEstH = (forms.blueList.length + forms.redList.length) * Math.round(fontSizePt * 1.5) + Math.round(fontSizePt * 2) + 20;
+      }
+
+      let contentBottom = Math.max(y1, y2);
+      let formsY = contentBottom + 24;
+      if (forms.hasForms) {
+        contentBottom = formsY + formsEstH;
+      }
+
+      let legendY = 0;
+      let legendH = 0;
+      let legendX = 25;
+      let legendWidth = LEGEND_BOX_WIDTH;
+      let totalH = contentBottom + 30;
+
+      if (enableLegend) {
+        legendY = contentBottom + 20;
+        legendH = Math.max(150, Math.round(fontSizePt * 14));
+        totalH = legendY + legendH + 25;
+      }
 
       return {
         isDoubleCol: true,
@@ -1384,13 +1456,14 @@
         formsY: formsY,
         formsX: 35,
         formsWidth: CANVAS_W - 70,
+        legendX, legendY, legendWidth, legendH,
         lineH,
         lineSpacingWord
       };
     }
   }
 
-  // --- SVG 渲染引擎 ---
+  // --- SVG 渲染引擎 (包含編號凸排懸掛對齊) ---
   function updateDiagram() {
     const geo = buildGeometryModel();
     const forms = getFormsData();
@@ -1501,10 +1574,29 @@
       });
     }
 
+    // 8. 底部圖示說明 (備註 - 編號凸排懸掛對齊排版)
+    if (enableLegend && geo.legendY > 0) {
+      content += `
+        <foreignObject x="${geo.legendX}" y="${geo.legendY}" width="${geo.legendWidth}" height="${geo.legendH}">
+          <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:'標楷體','DFKai-SB',serif; font-size:${fontSizePt + 2}px; line-height:1.45; color:#000000; text-align:justify;">
+            <div style="margin-bottom:6px; font-weight:bold;">
+              備註：<span style="color:#0033CC;">★</span> 施工檢驗停留點&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#CC0000;">※</span> 安全衛生查驗點
+            </div>
+            <div style="margin-bottom:6px; padding-left:1.5em; text-indent:-1.5em;">
+              1. 施工檢驗停留點應於廠商完成自主檢查並提出施工抽查申請後辦理；於圖中未標示為施工檢驗停留點，為監造單位之不定期查驗點。
+            </div>
+            <div style="padding-left:1.5em; text-indent:-1.5em;">
+              2. 安全衛生查驗點應於廠商完成安全衛生檢查並提出施工抽查申請後辦理；屬施工安全監造現場一般項目者，進行一般施工安全衛生抽查，若屬施工安全監造現場特定(專屬)項目者，則需進行特定項目(查驗項目內容/判定基準)施工安全衛生抽查。
+            </div>
+          </div>
+        </foreignObject>
+      `;
+    }
+
     svg.innerHTML = content;
   }
 
-  // --- Word 原生 VML 生成 ---
+  // --- Word 原生 VML 生成 (支援段落凸排縮排屬性) ---
   function buildWordVmlHtml() {
     const geo = buildGeometryModel();
     const forms = getFormsData();
@@ -1671,6 +1763,26 @@
       `;
     }
 
+    // 8. 底部圖示說明 (備註 - Word 凸排排版: margin-left + text-indent)
+    if (enableLegend && geo.legendY > 0) {
+      const indentPt = Math.round(fontSizePt * 1.5);
+      vml += `
+        <v:rect style="position:absolute;left:${geo.legendX}pt;top:${geo.legendY}pt;width:${geo.legendWidth}pt;height:${geo.legendH}pt;" filled="f" stroked="f">
+          <v:textbox inset="0,0,0,0" style="mso-fit-shape-to-text:t;">
+            <p style="margin:0 0 4pt 0;font-family:'標楷體','DFKai-SB';font-size:${fontSizePt}pt;color:#000000;mso-line-height-rule:exactly;line-height:${geo.lineSpacingWord}pt;">
+              <b>備註：</b><span style="color:#0033CC;font-weight:bold;">★</span> <b>施工檢驗停留點</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#CC0000;font-weight:bold;">※</span> <b>安全衛生查驗點</b>
+            </p>
+            <p style="margin:0 0 4pt ${indentPt}pt;text-indent:-${indentPt}pt;font-family:'標楷體','DFKai-SB';font-size:${fontSizePt}pt;color:#000000;mso-line-height-rule:exactly;line-height:${geo.lineSpacingWord}pt;text-align:justify;text-justify:inter-ideograph;">
+              1. 施工檢驗停留點應於廠商完成自主檢查並提出施工抽查申請後辦理；於圖中未標示為施工檢驗停留點，為監造單位之不定期查驗點。
+            </p>
+            <p style="margin:0 0 0 ${indentPt}pt;text-indent:-${indentPt}pt;font-family:'標楷體','DFKai-SB';font-size:${fontSizePt}pt;color:#000000;mso-line-height-rule:exactly;line-height:${geo.lineSpacingWord}pt;text-align:justify;text-justify:inter-ideograph;">
+              2. 安全衛生查驗點應於廠商完成安全衛生檢查並提出施工抽查申請後辦理；屬施工安全監造現場一般項目者，進行一般施工安全衛生抽查，若屬施工安全監造現場特定(專屬)項目者，則需進行特定項目(查驗項目內容/判定基準)施工安全衛生抽查。
+            </p>
+          </v:textbox>
+        </v:rect>
+      `;
+    }
+
     return `
       <html xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
       <head>
@@ -1711,7 +1823,7 @@
         document.execCommand('copy');
         document.removeEventListener('copy', listener);
       }
-      showToast('複製成功！請至 Word 按 Ctrl+V 貼上（已修復雙排方塊與表單）');
+      showToast('複製成功！請至 Word 按 Ctrl+V 貼上（備註已套用凸排懸掛對齊）');
     } catch (err) {
       console.error(err);
       showToast('寫入剪貼簿失敗，請確認瀏覽器已允許剪貼簿權限。', true);
