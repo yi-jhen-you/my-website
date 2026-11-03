@@ -242,7 +242,7 @@
   let verticalGap = 28;
   const PASS_VERTICAL_GAP = 28;
 
-  // 圖示文字框固定寬度為 14 公分 (14cm ≈ 397pt)
+  // 圖示文字框固定寬度為 14 公分 (14cm = 140mm = 14 * 72 / 2.54 ≈ 396.85pt)
   const LEGEND_BOX_WIDTH = 397;
 
   const startNodeText = "開始";
@@ -732,7 +732,7 @@
     return { blueList, redList, hasForms: (blueList.length > 0 || redList.length > 0) };
   }
 
-  // --- 幾何計算模型 (編號凸排懸掛對齊 + 14cm 寬度) ---
+  // --- 幾何計算模型 (備註文字框固定寬度為 14 公分約 397pt) ---
   function buildGeometryModel() {
     const sorted = getSortedFlowData();
     const breakIndex = splitTaskId ? sorted.findIndex(d => String(d.id) === String(splitTaskId)) : -1;
@@ -936,7 +936,8 @@
 
       if (enableLegend) {
         legendY = contentBottom + 20;
-        legendH = Math.max(150, Math.round(fontSizePt * 14));
+        // 寬度變窄至 14cm 後行數增加，安全高度加高
+        legendH = Math.max(145, Math.round(fontSizePt * 13.5));
         totalH = legendY + legendH + 25;
       }
 
@@ -1135,6 +1136,7 @@
         contentBottom = formsY + formsEstH;
       }
 
+      // 底部備註固定 14 公分寬 (397pt)
       let legendY = 0;
       let legendH = 0;
       let legendX = 25;
@@ -1143,7 +1145,7 @@
 
       if (enableLegend) {
         legendY = contentBottom + 20;
-        legendH = Math.max(150, Math.round(fontSizePt * 14));
+        legendH = Math.max(145, Math.round(fontSizePt * 13.5));
         totalH = legendY + legendH + 25;
       }
 
@@ -1433,6 +1435,7 @@
         contentBottom = formsY + formsEstH;
       }
 
+      // 底部備註固定 14 公分寬 (397pt)
       let legendY = 0;
       let legendH = 0;
       let legendX = 25;
@@ -1441,7 +1444,7 @@
 
       if (enableLegend) {
         legendY = contentBottom + 20;
-        legendH = Math.max(150, Math.round(fontSizePt * 14));
+        legendH = Math.max(145, Math.round(fontSizePt * 13.5));
         totalH = legendY + legendH + 25;
       }
 
@@ -1463,7 +1466,7 @@
     }
   }
 
-  // --- SVG 渲染引擎 (包含編號凸排懸掛對齊) ---
+  // --- SVG 渲染引擎 ---
   function updateDiagram() {
     const geo = buildGeometryModel();
     const forms = getFormsData();
@@ -1574,19 +1577,16 @@
       });
     }
 
-    // 8. 底部圖示說明 (備註 - 編號凸排懸掛對齊排版)
+    // 8. 底部圖示說明 (備註 - 固定寬度 14 公分約 397pt)
     if (enableLegend && geo.legendY > 0) {
       content += `
         <foreignObject x="${geo.legendX}" y="${geo.legendY}" width="${geo.legendWidth}" height="${geo.legendH}">
           <div xmlns="http://www.w3.org/1999/xhtml" style="font-family:'標楷體','DFKai-SB',serif; font-size:${fontSizePt + 2}px; line-height:1.45; color:#000000; text-align:justify;">
-            <div style="margin-bottom:6px; font-weight:bold;">
+            <div style="margin-bottom:4px; font-weight:bold;">
               備註：<span style="color:#0033CC;">★</span> 施工檢驗停留點&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#CC0000;">※</span> 安全衛生查驗點
             </div>
-            <div style="margin-bottom:6px; padding-left:1.5em; text-indent:-1.5em;">
-              1. 施工檢驗停留點應於廠商完成自主檢查並提出施工抽查申請後辦理；於圖中未標示為施工檢驗停留點，為監造單位之不定期查驗點。
-            </div>
-            <div style="padding-left:1.5em; text-indent:-1.5em;">
-              2. 安全衛生查驗點應於廠商完成安全衛生檢查並提出施工抽查申請後辦理；屬施工安全監造現場一般項目者，進行一般施工安全衛生抽查，若屬施工安全監造現場特定(專屬)項目者，則需進行特定項目(查驗項目內容/判定基準)施工安全衛生抽查。
+            <div style="margin-bottom:4px;">
+              施工檢驗停留點及安全衛生查驗點均應完成自主檢查後辦理；於圖中未標示為施工檢驗停留點及安全衛生查驗點者，為監造單位之不定期查點。
             </div>
           </div>
         </foreignObject>
@@ -1596,7 +1596,7 @@
     svg.innerHTML = content;
   }
 
-  // --- Word 原生 VML 生成 (支援段落凸排縮排屬性) ---
+  // --- Word 原生 VML 生成 ---
   function buildWordVmlHtml() {
     const geo = buildGeometryModel();
     const forms = getFormsData();
@@ -1763,21 +1763,18 @@
       `;
     }
 
-    // 8. 底部圖示說明 (備註 - Word 凸排排版: margin-left + text-indent)
+    // 8. 底部圖示說明 (備註 - 固定 14 公分寬文字框)
     if (enableLegend && geo.legendY > 0) {
-      const indentPt = Math.round(fontSizePt * 1.5);
       vml += `
         <v:rect style="position:absolute;left:${geo.legendX}pt;top:${geo.legendY}pt;width:${geo.legendWidth}pt;height:${geo.legendH}pt;" filled="f" stroked="f">
           <v:textbox inset="0,0,0,0" style="mso-fit-shape-to-text:t;">
             <p style="margin:0 0 4pt 0;font-family:'標楷體','DFKai-SB';font-size:${fontSizePt}pt;color:#000000;mso-line-height-rule:exactly;line-height:${geo.lineSpacingWord}pt;">
               <b>備註：</b><span style="color:#0033CC;font-weight:bold;">★</span> <b>施工檢驗停留點</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#CC0000;font-weight:bold;">※</span> <b>安全衛生查驗點</b>
             </p>
-            <p style="margin:0 0 4pt ${indentPt}pt;text-indent:-${indentPt}pt;font-family:'標楷體','DFKai-SB';font-size:${fontSizePt}pt;color:#000000;mso-line-height-rule:exactly;line-height:${geo.lineSpacingWord}pt;text-align:justify;text-justify:inter-ideograph;">
-              1. 施工檢驗停留點應於廠商完成自主檢查並提出施工抽查申請後辦理；於圖中未標示為施工檢驗停留點，為監造單位之不定期查驗點。
+            <p style="margin:0 0 3pt 0;font-family:'標楷體','DFKai-SB';font-size:${fontSizePt}pt;color:#000000;mso-line-height-rule:exactly;line-height:${geo.lineSpacingWord}pt;text-align:justify;text-justify:inter-ideograph;">
+             施工檢驗停留點及安全衛生查驗點均應完成自主檢查後辦理；於圖中未標示為施工檢驗停留點及安全衛生查驗點者，為監造單位之不定期查點。
             </p>
-            <p style="margin:0 0 0 ${indentPt}pt;text-indent:-${indentPt}pt;font-family:'標楷體','DFKai-SB';font-size:${fontSizePt}pt;color:#000000;mso-line-height-rule:exactly;line-height:${geo.lineSpacingWord}pt;text-align:justify;text-justify:inter-ideograph;">
-              2. 安全衛生查驗點應於廠商完成安全衛生檢查並提出施工抽查申請後辦理；屬施工安全監造現場一般項目者，進行一般施工安全衛生抽查，若屬施工安全監造現場特定(專屬)項目者，則需進行特定項目(查驗項目內容/判定基準)施工安全衛生抽查。
-            </p>
+
           </v:textbox>
         </v:rect>
       `;
@@ -1823,7 +1820,7 @@
         document.execCommand('copy');
         document.removeEventListener('copy', listener);
       }
-      showToast('複製成功！請至 Word 按 Ctrl+V 貼上（備註已套用凸排懸掛對齊）');
+      showToast('複製成功！請至 Word 按 Ctrl+V 貼上（備註文字框已調整為 14 公分寬度）');
     } catch (err) {
       console.error(err);
       showToast('寫入剪貼簿失敗，請確認瀏覽器已允許剪貼簿權限。', true);
